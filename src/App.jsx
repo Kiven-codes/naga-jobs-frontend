@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = 'https://naga-jobs-backend.onrender.com/api';
 
 function App() {
   const [view, setView] = useState('home');
