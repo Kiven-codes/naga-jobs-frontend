@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
-const API_URL = 'https://naga-jobs-backend.onrender.com/api';
+const API_URL = 'http://localhost:3000/api';
 
 function App() {
   const [user, setUser] = useState(null);
