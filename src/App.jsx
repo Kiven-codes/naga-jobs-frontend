@@ -1,332 +1,397 @@
 import React, { useState, useEffect } from 'react';
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 const API_URL = 'https://naga-jobs-backend.onrender.com/api';
 
 function App() {
-  const [view, setView] = useState('home');
-  const [jobs, setJobs] = useState([]);
-  const [companies, setCompanies] = useState([]);
   const [user, setUser] = useState(null);
-  const [loginData, setLoginData] = useState({ email: '', password: '' });
-  const [registerData, setRegisterData] = useState({ email: '', password: '', role: 'applicant' });
+  const [view, setView] = useState('login');
+  const [jobs, setJobs] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [myJobs, setMyJobs] = useState([]);
 
   useEffect(() => {
-    fetchJobs();
-    fetchCompanies();
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+      setView('dashboard');
+    }
   }, []);
 
-  const fetchJobs = async () => {
-    try {
+  useEffect(() => {
+    if (user) {
+      loadData();
+    }
+  }, [user]);
+
+  const loadData = async () => {
+    if (user.role === 'applicant') {
       const res = await fetch(`${API_URL}/jobs`);
       const data = await res.json();
       setJobs(data);
-    } catch (err) {
-      console.error('Error fetching jobs:', err);
+
+      const appRes = await fetch(`${API_URL}/applications/${user.user_id}`);
+      const appData = await appRes.json();
+      setApplications(appData);
+    } else if (user.role === 'company') {
+      const res = await fetch(`${API_URL}/company-jobs/${user.user_id}`);
+      const data = await res.json();
+      setMyJobs(data);
     }
   };
 
-  const fetchCompanies = async () => {
-    try {
-      const res = await fetch(`${API_URL}/companies`);
+  const login = async (email, password) => {
+    const res = await fetch(`${API_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    
+    if (res.ok) {
       const data = await res.json();
-      setCompanies(data);
-    } catch (err) {
-      console.error('Error fetching companies:', err);
+      setUser(data);
+      localStorage.setItem('user', JSON.stringify(data));
+      setView('dashboard');
+    } else {
+      alert('Invalid credentials');
     }
   };
 
-  const handleLogin = async () => {
-    try {
-      const res = await fetch(`${API_URL}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginData)
-      });
-      const data = await res.json();
-      if (data.user) {
-        setUser(data.user);
-        setView('home');
-        alert('Login successful!');
-      } else {
-        alert(data.message || 'Login failed');
-      }
-    } catch (err) {
-      alert('Login error');
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem('user');
+    setView('login');
+  };
+
+  const applyJob = async (jobId) => {
+    const res = await fetch(`${API_URL}/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: jobId, user_id: user.user_id })
+    });
+
+    if (res.ok) {
+      alert('Application submitted!');
+      loadData();
     }
   };
 
-  const handleRegister = async () => {
-    try {
-      const res = await fetch(`${API_URL}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(registerData)
-      });
-      const data = await res.json();
-      alert(data.message);
-      if (data.userId) {
-        setView('login');
-      }
-    } catch (err) {
-      alert('Registration error');
+  const postJob = async (jobTitle, skills, location) => {
+    const res = await fetch(`${API_URL}/jobs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        user_id: user.user_id,
+        job_title: jobTitle,
+        required_skills: skills,
+        location 
+      })
+    });
+
+    if (res.ok) {
+      alert('Job posted!');
+      loadData();
     }
   };
 
-  const handleApply = async (jobId) => {
-    if (!user) {
-      alert('Please login to apply');
-      setView('login');
-      return;
-    }
-    try {
-      const res = await fetch(`${API_URL}/applications`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          applicantId: user.user_id, 
-          jobId,
-          status: 'pending'
-        })
-      });
-      const data = await res.json();
-      alert(data.message);
-    } catch (err) {
-      alert('Error applying for job');
+  const updateApplicationStatus = async (appId, status) => {
+    const res = await fetch(`${API_URL}/applications/${appId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+
+    if (res.ok) {
+      alert('Status updated!');
+      loadData();
     }
   };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
-      <nav style={{ 
-        backgroundColor: '#0d6efd', 
-        padding: '1rem 0',
-        marginBottom: '2rem'
-      }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
-            <h2 style={{ margin: 0, fontWeight: 'bold' }}>NAGA JOBS</h2>
-            <div style={{ display: 'flex', gap: '1.5rem' }}>
-              <button onClick={() => setView('home')} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>Home</button>
-              <button onClick={() => setView('jobs')} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>Jobs</button>
-              <button onClick={() => setView('companies')} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>Companies</button>
-              {user ? (
-                <>
-                  <span>Hello, {user.email}</span>
-                  <button onClick={() => { setUser(null); setView('home'); }} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>Logout</button>
-                </>
-              ) : (
-                <>
-                  <button onClick={() => setView('login')} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>Login</button>
-                  <button onClick={() => setView('register')} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>Register</button>
-                </>
-              )}
+    <div className="min-vh-100 bg-light">
+      <nav className="navbar navbar-dark bg-primary">
+        <div className="container">
+          <span className="navbar-brand mb-0 h1">🏢 NAGA JOBS</span>
+          {user && (
+            <div className="text-white">
+              <span className="me-3">{user.email}</span>
+              <button className="btn btn-light btn-sm" onClick={logout}>Logout</button>
             </div>
-          </div>
+          )}
         </div>
       </nav>
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1rem' }}>
-        {view === 'home' && (
-          <div style={{ textAlign: 'center', padding: '3rem 0' }}>
-            <h1 style={{ fontSize: '3rem', fontWeight: 'bold', marginBottom: '1rem' }}>Welcome to Naga Jobs</h1>
-            <p style={{ fontSize: '1.25rem', marginBottom: '2rem', color: '#6c757d' }}>
-              Online Job Portal and Applicant Tracking System in Naga City, Camarines Sur, Philippines
-            </p>
-            <button 
-              onClick={() => setView('jobs')}
-              style={{
-                backgroundColor: '#0d6efd',
-                color: 'white',
-                border: 'none',
-                padding: '0.75rem 2rem',
-                fontSize: '1.1rem',
-                borderRadius: '0.25rem',
-                cursor: 'pointer',
-                marginRight: '1rem'
-              }}
-            >
-              Browse Jobs
-            </button>
-            <button 
-              onClick={() => setView('companies')}
-              style={{
-                backgroundColor: 'white',
-                color: '#0d6efd',
-                border: '2px solid #0d6efd',
-                padding: '0.75rem 2rem',
-                fontSize: '1.1rem',
-                borderRadius: '0.25rem',
-                cursor: 'pointer'
-              }}
-            >
-              View Companies
-            </button>
-          </div>
+      <div className="container py-4">
+        {view === 'login' && <LoginView onLogin={login} onRegister={() => setView('register')} />}
+        {view === 'register' && <RegisterView onBack={() => setView('login')} />}
+        {view === 'dashboard' && user && (
+          user.role === 'applicant' ? (
+            <ApplicantDashboard 
+              jobs={jobs} 
+              applications={applications} 
+              onApply={applyJob} 
+            />
+          ) : (
+            <CompanyDashboard 
+              myJobs={myJobs} 
+              onPostJob={postJob}
+              onUpdateStatus={updateApplicationStatus}
+            />
+          )
         )}
+      </div>
+    </div>
+  );
+}
 
-        {view === 'login' && (
-          <div style={{ maxWidth: '500px', margin: '0 auto' }}>
-            <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '0.5rem', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
-              <h2 style={{ textAlign: 'center', marginBottom: '1.5rem' }}>Login</h2>
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Email</label>
-                <input 
-                  type="email"
-                  value={loginData.email}
-                  onChange={(e) => setLoginData({...loginData, email: e.target.value})}
-                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ced4da', borderRadius: '0.25rem' }}
-                />
-              </div>
-              <div style={{ marginBottom: '1.5rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Password</label>
-                <input 
-                  type="password"
-                  value={loginData.password}
-                  onChange={(e) => setLoginData({...loginData, password: e.target.value})}
-                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ced4da', borderRadius: '0.25rem' }}
-                />
-              </div>
-              <button 
-                onClick={handleLogin}
-                style={{
-                  width: '100%',
-                  backgroundColor: '#0d6efd',
-                  color: 'white',
-                  border: 'none',
-                  padding: '0.75rem',
-                  borderRadius: '0.25rem',
-                  cursor: 'pointer',
-                  fontSize: '1rem'
-                }}
-              >
-                Login
-              </button>
+function LoginView({ onLogin, onRegister }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleSubmit = () => {
+    onLogin(email, password);
+  };
+
+  return (
+    <div className="row justify-content-center">
+      <div className="col-md-5">
+        <div className="card shadow">
+          <div className="card-body p-4">
+            <h3 className="text-center mb-4">Login</h3>
+            <div className="mb-3">
+              <label className="form-label">Email</label>
+              <input 
+                type="email" 
+                className="form-control" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div className="mb-3">
+              <label className="form-label">Password</label>
+              <input 
+                type="password" 
+                className="form-control"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <button onClick={handleSubmit} className="btn btn-primary w-100">Login</button>
+            <div className="text-center mt-3">
+              <small>Demo: juan@gmail.com / 12345 (Applicant)</small><br/>
+              <small>Demo: HR1@gmail.com / 12345 (Company)</small>
             </div>
           </div>
-        )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-        {view === 'register' && (
-          <div style={{ maxWidth: '500px', margin: '0 auto' }}>
-            <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '0.5rem', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
-              <h2 style={{ textAlign: 'center', marginBottom: '1.5rem' }}>Register</h2>
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Email</label>
-                <input 
-                  type="email"
-                  value={registerData.email}
-                  onChange={(e) => setRegisterData({...registerData, email: e.target.value})}
-                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ced4da', borderRadius: '0.25rem' }}
-                />
-              </div>
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Password</label>
-                <input 
-                  type="password"
-                  value={registerData.password}
-                  onChange={(e) => setRegisterData({...registerData, password: e.target.value})}
-                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ced4da', borderRadius: '0.25rem' }}
-                />
-              </div>
-              <div style={{ marginBottom: '1.5rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Role</label>
-                <select
-                  value={registerData.role}
-                  onChange={(e) => setRegisterData({...registerData, role: e.target.value})}
-                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ced4da', borderRadius: '0.25rem' }}
-                >
-                  <option value="applicant">Applicant</option>
-                  <option value="employer">Employer</option>
-                </select>
-              </div>
-              <button 
-                onClick={handleRegister}
-                style={{
-                  width: '100%',
-                  backgroundColor: '#0d6efd',
-                  color: 'white',
-                  border: 'none',
-                  padding: '0.75rem',
-                  borderRadius: '0.25rem',
-                  cursor: 'pointer',
-                  fontSize: '1rem'
-                }}
-              >
-                Register
-              </button>
-            </div>
+function RegisterView({ onBack }) {
+  return (
+    <div className="row justify-content-center">
+      <div className="col-md-5">
+        <div className="card shadow">
+          <div className="card-body p-4">
+            <h3 className="text-center mb-4">Register</h3>
+            <p className="text-center text-muted">Registration feature - use demo accounts</p>
+            <button className="btn btn-secondary w-100" onClick={onBack}>Back to Login</button>
           </div>
-        )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-        {view === 'jobs' && (
-          <div>
-            <h2 style={{ marginBottom: '1.5rem' }}>Available Jobs</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
-              {jobs.map(job => (
-                <div key={job.job_id} style={{ 
-                  backgroundColor: 'white', 
-                  padding: '1.5rem', 
-                  borderRadius: '0.5rem',
-                  boxShadow: '0 0 10px rgba(0,0,0,0.1)'
-                }}>
-                  <h5 style={{ marginBottom: '0.5rem' }}>{job.job_title}</h5>
-                  <h6 style={{ color: '#6c757d', marginBottom: '1rem' }}>{job.company_name}</h6>
-                  <p style={{ marginBottom: '0.5rem' }}>
-                    <strong>Location:</strong> {job.location}
-                  </p>
-                  <p style={{ marginBottom: '1rem' }}>
-                    <strong>Skills Required:</strong> {job.req_skills}
-                  </p>
+function ApplicantDashboard({ jobs, applications, onApply }) {
+  const appliedJobIds = applications.map(app => app.job_id);
+
+  return (
+    <div>
+      <h2 className="mb-4">Available Jobs in Naga City</h2>
+      
+      <div className="row">
+        {jobs.map(job => (
+          <div key={job.job_id} className="col-md-6 mb-3">
+            <div className="card h-100">
+              <div className="card-body">
+                <h5 className="card-title">{job.job_title}</h5>
+                <h6 className="text-muted">{job.company_name}</h6>
+                <p className="mb-1"><strong>Skills:</strong> {job.required_skills}</p>
+                <p className="mb-3"><strong>Location:</strong> {job.location}</p>
+                {appliedJobIds.includes(job.job_id) ? (
+                  <span className="badge bg-secondary">Already Applied</span>
+                ) : (
                   <button 
-                    onClick={() => handleApply(job.job_id)}
-                    style={{
-                      backgroundColor: '#0d6efd',
-                      color: 'white',
-                      border: 'none',
-                      padding: '0.5rem 1.5rem',
-                      borderRadius: '0.25rem',
-                      cursor: 'pointer'
-                    }}
+                    className="btn btn-primary btn-sm"
+                    onClick={() => onApply(job.job_id)}
                   >
                     Apply Now
                   </button>
-                </div>
-              ))}
+                )}
+              </div>
             </div>
           </div>
-        )}
-
-        {view === 'companies' && (
-          <div>
-            <h2 style={{ marginBottom: '1.5rem' }}>Companies</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
-              {companies.map(company => (
-                <div key={company.company_id} style={{ 
-                  backgroundColor: 'white', 
-                  padding: '1.5rem', 
-                  borderRadius: '0.5rem',
-                  boxShadow: '0 0 10px rgba(0,0,0,0.1)'
-                }}>
-                  <h5 style={{ marginBottom: '0.5rem' }}>{company.company_name}</h5>
-                  <p style={{ color: '#6c757d' }}>
-                    <strong>Location:</strong> {company.location}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        ))}
       </div>
 
-      <footer style={{ 
-        backgroundColor: '#212529', 
-        color: 'white', 
-        textAlign: 'center', 
-        padding: '1.5rem', 
-        marginTop: '3rem' 
-      }}>
-        <p style={{ margin: 0 }}>© 2024 Naga Jobs - Online Job Portal and Applicant Tracking System</p>
-        <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: '#adb5bd' }}>Naga City, Camarines Sur, Philippines</p>
-      </footer>
+      <h3 className="mt-5 mb-3">My Applications</h3>
+      <div className="table-responsive">
+        <table className="table table-bordered bg-white">
+          <thead className="table-light">
+            <tr>
+              <th>Job Title</th>
+              <th>Company</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {applications.map(app => (
+              <tr key={app.application_id}>
+                <td>{app.job_title}</td>
+                <td>{app.company_name}</td>
+                <td>
+                  <span className={`badge ${
+                    app.status === 'Accepted' ? 'bg-success' : 
+                    app.status === 'Rejected' ? 'bg-danger' : 'bg-warning'
+                  }`}>
+                    {app.status}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function CompanyDashboard({ myJobs, onPostJob, onUpdateStatus }) {
+  const [showForm, setShowForm] = useState(false);
+  const [jobTitle, setJobTitle] = useState('');
+  const [skills, setSkills] = useState('');
+  const [location, setLocation] = useState('Naga City');
+
+  const handleSubmit = () => {
+    onPostJob(jobTitle, skills, location);
+    setJobTitle('');
+    setSkills('');
+    setLocation('Naga City');
+    setShowForm(false);
+  };
+
+  return (
+    <div>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h2>My Job Postings</h2>
+        <button 
+          className="btn btn-primary"
+          onClick={() => setShowForm(!showForm)}
+        >
+          {showForm ? 'Cancel' : '+ Post New Job'}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="card mb-4">
+          <div className="card-body">
+            <div className="row">
+              <div className="col-md-4 mb-3">
+                <label className="form-label">Job Title</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  value={jobTitle}
+                  onChange={(e) => setJobTitle(e.target.value)}
+                />
+              </div>
+              <div className="col-md-4 mb-3">
+                <label className="form-label">Required Skills</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  value={skills}
+                  onChange={(e) => setSkills(e.target.value)}
+                />
+              </div>
+              <div className="col-md-4 mb-3">
+                <label className="form-label">Location</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                />
+              </div>
+            </div>
+            <button onClick={handleSubmit} className="btn btn-success">Post Job</button>
+          </div>
+        </div>
+      )}
+
+      {myJobs.map(job => (
+        <div key={job.job_id} className="card mb-3">
+          <div className="card-body">
+            <h5>{job.job_title}</h5>
+            <p className="mb-1"><strong>Skills:</strong> {job.required_skills}</p>
+            <p className="mb-3"><strong>Location:</strong> {job.location}</p>
+            
+            <h6 className="mt-3">Applications ({job.applications?.length || 0})</h6>
+            {job.applications && job.applications.length > 0 ? (
+              <div className="table-responsive">
+                <table className="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>Applicant</th>
+                      <th>Skills</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {job.applications.map(app => (
+                      <tr key={app.application_id}>
+                        <td>{app.full_name}</td>
+                        <td>{app.skills}</td>
+                        <td>
+                          <span className={`badge ${
+                            app.status === 'Accepted' ? 'bg-success' : 
+                            app.status === 'Rejected' ? 'bg-danger' : 'bg-warning'
+                          }`}>
+                            {app.status}
+                          </span>
+                        </td>
+                        <td>
+                          {app.status === 'Pending' && (
+                            <>
+                              <button 
+                                className="btn btn-success btn-sm me-1"
+                                onClick={() => onUpdateStatus(app.application_id, 'Accepted')}
+                              >
+                                Accept
+                              </button>
+                              <button 
+                                className="btn btn-danger btn-sm"
+                                onClick={() => onUpdateStatus(app.application_id, 'Rejected')}
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-muted small">No applications yet</p>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
